@@ -1,0 +1,185 @@
+#!/usr/bin/perl -w
+
+use strict;
+use diagnostics;
+
+use Getopt::Long qw(:config no_ignore_case);
+use File::Path qw/mkpath/;
+use File::Basename;
+use Cwd;
+use DBI;
+
+use lib dirname($0);
+use KD::Aux;
+use KD::StateDB;
+
+# globals
+my $name = 'kd-process-file';
+my $version = '0.7.2';
+
+# process command line parameters
+my $help;
+my $getversion;
+my $verbose = 0;
+my $input;
+my $simulate;
+
+GetOptions(
+  'help'     => \$help,
+  'version'  => \$getversion,
+  'Verbose'  => \$verbose,
+  'input'    => \$input,
+  'simulate' => \$simulate,
+);
+
+my $profile_file = $ARGV[0];
+my $file = $ARGV[1];
+
+print_usage_and_exit(0) if $help;
+print_version_and_exit() if $getversion;
+print_usage_and_exit(1) if not $profile_file or not $file;
+
+# read profile
+my $profile = KD::Aux::read_profile($profile_file);
+
+#
+## main program
+#
+
+my $state = KD::StateDB->new({
+    %{$profile},
+    verbose     => $verbose ? 1 : $profile->{verbose},
+});
+
+my $pfret = process_file($state, $file);
+exit if $pfret eq 'no match' or $pfret eq 'processed';
+die "Error: $pfret\n" if $pfret ne "0";
+
+#
+## subroutines
+#
+
+# process_file($state, $file)
+#
+# Copies a file $file to destination and calls db input script
+sub process_file {
+    my $state = shift;
+    my $file = shift;
+
+    my $match = KD::Aux::match($profile, $file);
+    if (not $match) {
+        print "Konnte Dateityp für '$file' nicht erkennen.\n";
+        return "no match";
+    }
+
+    my $yymmdd;
+    if ($match->{date_from_filename}
+            or (not defined $match->{date_from_filename}
+                and $profile->{date_from_filename})) {
+        $yymmdd = KD::Aux::get_date_from_filename(
+            $file, $match->{date_regex});
+    }
+    else {
+        $yymmdd = KD::Aux::get_date_from_mtime($file);
+    }
+    my $yymm = KD::Aux::yymm_date($yymmdd);
+    my $newname = KD::Aux::new_filename($match, $yymmdd);
+
+    return 'processed' if $state->already_processed_file($file, $newname);
+
+    print '(Simulation) ' if $simulate;
+    print "Verarbeite \"".basename($file)."\" von $profile->{name}... ";
+
+    # create necessary directories
+    my $dir = "$profile->{destination}/$match->{dir}/$yymm";
+    if (not -d $dir and not $simulate) {
+        die "Konnte Verzeichnis \"$dir\" nicht anlegen!" if not mkpath($dir);
+    }
+
+    # copy file
+    my $cpret = `cp -p \"$file\" \"$dir/$newname\"` if not $simulate;
+    return "unable to copy file: $cpret\n" if $? != 0;
+
+    # if $input is on, input data into database
+    my $ret = 0;
+    $ret = input_data("$dir/$newname", $yymm, $match) if $input;
+
+    # mark file as done if everything went fine
+    if ($ret == 0) {
+        # next line's tricky: see "Logical or, Defined or, and Exclusive
+        # Or" in `perldoc perlop`: the right expression is only
+        # evaluated if the left one's false.
+        if ($simulate or $state->mark_done($file, $newname)) {
+            print "fertig.\n";
+            return $ret;
+        }
+        else {
+            die "Konnte Datei nicht als verarbeitet markieren.\n";
+        }
+    }
+}
+
+# input_data($file, $timestamp, $match)
+#
+# Calls scripts to input data into database
+sub input_data {
+    my $file = shift;
+    my $timestamp = shift;
+    my $match = shift;
+
+    return 0 if not $match->{dbinput};
+
+    my $app = "$profile->{db_app_path}/$match->{dbinput}";
+    my $logdir = "$profile->{db_log_path}/$match->{dir}/$timestamp/";
+
+    # since the error handling of make_path sucks we just hope for the
+    # best here
+    mkpath($logdir);
+
+    # input data
+    print "lese Daten in Datenbank ein... ";
+    if (-x $app) {
+        return 0 if $simulate;
+        `$app \"$file\" $timestamp $profile->{shortname}`;
+        my $dbaret = $?;
+        die "$app endete mit Fehlercode $dbaret!\n" if $dbaret != 0;
+    }
+    else {
+        die "Kann \"$app\" nicht ausführen!\n";
+    }
+    return 0;
+}
+    
+# print_version_and_exit()
+#
+# Print out version information and exit with error code 0.
+sub print_version_and_exit {
+    print "$name $version\n";
+    exit 0;
+}
+
+# print_usage_and_exit($)
+#
+# Print out usage information and exit with supplied exit code.
+sub print_usage_and_exit {
+    my $exit_code = shift;
+
+    print<<EOT;
+Aufruf: $name [Option] <Profil> <Datei>
+
+Verarbeitet <Datei>. Die Datei wird in das zugehoerige
+Verzeichnis kopiert und die Daten werden, falls gewuenscht, in die
+Datenbank eingelesen.
+
+Optionen:
+  -h, --help           diese Hilfe anzeigen
+  -v, --version        Versionsinformationen anzeigen
+  -q, --quiet          keine Ausgabe (nur Fehlermeldungen)
+  -s, --simulate       Aktionen simulieren, nichts veraendern
+  -i, --input          Einleseskripte nach dem Einordnen für diese Datei
+                         ausfuehren
+EOT
+
+    exit $exit_code;
+}
+

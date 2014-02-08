@@ -1,0 +1,45 @@
+#!/bin/bash
+
+name='kd'
+commands='process process-file list mark'
+
+cmdsregex=$(echo $commands | sed 's/ /\\|/g')
+
+usage () {
+    echo "Aufruf: $name <Befehl>"
+    echo
+    echo "$name sorgt für das Sortieren und Einlesen von kd-Daten."
+    echo "Gültige Befehle sind:"
+    echo "    help $commands"
+    echo "Die Hilfe zu den einzelnen Befehlen gibt es mit"
+    echo "    $name help <Befehl>"
+    echo
+}
+
+wanthelp=0
+if [ "$1" == "help" ]; then
+    wanthelp=1;
+    shift;
+fi
+
+command=$1
+shift
+
+if [ "$command" ]; then
+    if expr "$command" : "$cmdsregex" >/dev/null; then 
+        if [ $wanthelp -ne 0 ]; then
+            kd-$command --help
+        else
+            kd-$command "$@"
+        fi
+    else
+        echo Unbekannter Befehl: $command
+        echo
+        usage
+        exit
+    fi
+else
+    usage
+    exit
+fi
+

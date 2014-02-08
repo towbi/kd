@@ -1,0 +1,109 @@
+#!/usr/bin/perl -w
+
+use strict;
+use diagnostics;
+
+use Cwd;
+use Getopt::Long qw(:config no_ignore_case);
+use File::Basename;
+
+use lib dirname($0);
+use KD::Aux;
+use KD::StateDB;
+use Data::Dumper;
+
+# globals
+my $name = 'kd-list';
+my $version = '0.7.2';
+
+my $curdir = cwd();
+my $dirname = dirname($0);
+
+my $tableformat = "%20s  |  %7s  |  %20s  |  %15s\n";
+
+# process command line parameters
+my $help;
+my $getversion;
+my $verbose = 0;
+
+GetOptions(
+    'help'      => \$help,
+    'version'   => \$getversion,
+    'Verbose'   => \$verbose,
+);
+
+my $profile_file   = shift @ARGV;
+
+print_usage_and_exit(0) if $help;
+print_version_and_exit() if $getversion;
+print_usage_and_exit(1) if not $profile_file;
+
+# read profile
+my $profile = KD::Aux::read_profile($profile_file);
+
+# try to make a connection to the state database
+my $state = KD::StateDB->new({
+    %{$profile},
+    verbose     => $verbose ? 1 : $profile->{verbose},
+});
+
+my $sql = "@ARGV";
+my $completed = $state->get_all($sql);
+
+my $thead = sprintf $tableformat,
+    "original filename", "farm id", "new filename", "processing date";
+print $thead, '-' x length($thead), "\n";
+for my $entry (@$completed) {
+    printf $tableformat, @$entry;
+}
+
+#
+## subroutines
+#
+
+# print_version_and_exit()
+#
+# Print out version information and exit with error code 0.
+sub print_version_and_exit {
+    print "$name $version\n";
+    exit 0;
+}
+
+# print_usage_and_exit($exit_code)
+#
+# Print out usage information and exit with supplied exit code.
+#TODO
+sub print_usage_and_exit {
+    my $exit_code = shift;
+
+    print "new: ".."\n";
+    print<<EOT;
+Aufruf: $name [Option] <Profil> [SQL]
+
+$name listet alle bisher von kd bearbeiteten Dateien für das angegebene
+Profil auf. Optional kann zusaetzlich eine Bedingung und eine Ordnung
+festgelegt werden. Diese Parameter muessen in SQL-Syntax angegeben werden,
+siehe Beispiel. Gueltige Spaltennamen sind:
+"$KD::StateDB::tsfile", "$KD::StateDB::tsnewname" und "$KD::StateDB::tstime"
+
+Beispiel:
+
+  $name testfarm \\
+    "WHERE $KD::StateDB::tsnewname LIKE 'pe%' AND $KD::StateDB::tstime > '2010-02-25' \\
+    ORDER BY $KD::StateDB::tstime DESC"
+
+  listet alle Dateien die mit "pe" anfangen und nach dem 25.02.2010
+  bearbeitet wurden.
+
+Anfuehrungszeichen muessen so wie im Beispiel benutzt werden. Wenn die
+Ausgabe zu lang ist, kann sie durch less gepipet werden ("| less" an den
+Befehl anhaengen).
+
+Optionen:
+  -h, --help           diese Hilfe anzeigen
+  -v, --version        Versionsinformationen anzeigen
+EOT
+
+    exit $exit_code;
+}
+

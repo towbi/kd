@@ -1,0 +1,121 @@
+#!/usr/bin/perl -w
+
+use strict;
+use diagnostics;
+
+use Cwd;
+use Getopt::Long qw(:config no_ignore_case);
+use File::Basename;
+
+use lib dirname($0);
+use KD::Aux;
+use KD::StateDB;
+
+# globals
+my $name = 'kd-mark';
+my $version = '0.7.2';
+
+my $curdir = cwd();
+my $dirname = dirname($0);
+
+# process command line parameters
+my $help;
+my $getversion;
+my $verbose = 0;
+my $old;
+my $input;
+my $unmark;
+
+GetOptions(
+    'help'    => \$help,
+    'version' => \$getversion,
+    'Verbose' => \$verbose,
+    'old'     => \$old,
+    'input'   => \$input,
+    'unmark'  => \$unmark,
+);
+
+my $profile_file    = shift @ARGV;
+my @files_to_unmark = @ARGV;
+
+print_usage_and_exit(0) if $help;
+print_version_and_exit() if $getversion;
+print_usage_and_exit(1) if not $profile_file or not @files_to_unmark;
+
+# read profile
+my $profile = KD::Aux::read_profile($profile_file);
+
+# try to make a connection to the state database
+my $state = KD::StateDB->new({
+    %{$profile},
+    verbose => $verbose ? 1 : $profile->{verbose},
+});
+
+# give the user a chance to cancel
+if (!$unmark) {
+    print<<EOT;
+Beim Markieren wird der Dateiname sowohl als der alte, als auch als der neue
+benutzt. Falls dies nicht gewünscht ist, müssen die entsprechenden Daten direkt
+in der Datenbank geändert werden. (Fortfahren mit Enter, Abbruch mit CTRL-c) 
+EOT
+   <STDIN>;
+}
+
+# (un)mark files
+my $count = 0;
+for my $file (@files_to_unmark) {
+    $count++;
+    if ($unmark) {
+        $state->unmark($file, $old ? 'old' : 'new');
+    }
+    else {
+        $state->mark_done($file, $file);
+    }
+}
+
+print "Markierung von $count Dateien entfernt.\n" if $unmark;
+print "Markierung zu $count Dateien hinzugefügt.\n" if not $unmark;
+
+#
+## subroutines
+#
+
+# print_version_and_exit()
+#
+# Print out version information and exit with error code 0.
+sub print_version_and_exit {
+    print "$name $version\n";
+    exit 0;
+}
+
+# print_usage_and_exit($exit_code)
+#
+# Print out usage information and exit with supplied exit code.
+sub print_usage_and_exit {
+    my $exit_code = shift;
+
+    print<<EOT;
+Aufruf: $name [Option] <Profil> <Datei> [<Datei> ...]
+
+$name setzt oder entfernt die Markierung, dass <Datei> bereits eingelesen
+wurde.
+
+In der Standardeinstellung sucht $name beim Entfernen der Markierung
+nach dem Dateinamen, den eine Datei nach der Bearbeitung durch kd-process
+(-file) erhalten hat. Dies ist mit -o konfigurierbar. Es koennen mehrere
+Dateien auf einmal angegeben werden.
+
+Beim Setzen der Markierung wird der gegebene Dateiname in der Datenbank
+als alter und neuer Dateiname eingetragen. Wenn das nicht gewünscht ist,
+müssen die Daten von Hand in die Datenbank eingetragen werden.
+
+Optionen:
+  -h, --help           diese Hilfe anzeigen
+  -v, --version        Versionsinformationen anzeigen
+  -u, --unmark         Markierung entfernen, nicht setzen
+  -o, --old            nach altem Dateinamen suchen
+EOT
+
+    exit $exit_code;
+}
+
