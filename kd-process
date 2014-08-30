@@ -13,7 +13,7 @@ use KD::StateDB;
 
 # globals
 my $name = 'kd-process';
-my $version = '0.7.2';
+my $version = '0.7.4';
 
 my $default_priority = 500;
 

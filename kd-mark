@@ -13,7 +13,7 @@ use KD::StateDB;
 
 # globals
 my $name = 'kd-mark';
-my $version = '0.7.2';
+my $version = '0.7.4';
 
 my $curdir = cwd();
 my $dirname = dirname($0);
