@@ -97,8 +97,8 @@ sub get_date_from_filename {
         my (@match) = $filename =~ /$regex/;
         if (scalar @match > 0) {
             my $date = $match[0];
-            $date =~ tr/-//d;
-            return $date;
+            $date =~ tr/-_//d;
+            return $date if length $date == 6;
         }
     }
     else {
