@@ -120,8 +120,8 @@ sub prioritize(\@) {
         # There's some serious overhead here, since match is called for
         # each comparison sort has to make.
 
-        return defined $match->{priority} ?
-            $match->{priority} : $default_priority;
+        return defined $match->{mapping}->{priority} ?
+            $match->{mapping}->{priority} : $default_priority;
     }
 
     # TODO: We need the files sorted by their priority and then their filename.

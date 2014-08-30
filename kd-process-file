@@ -72,16 +72,30 @@ sub process_file {
         return "no match";
     }
 
+    # extract date from filesystem or filename
     my $yymmdd;
-    if ($match->{date_from_filename}
-            or (not defined $match->{date_from_filename}
+    if ($match->{mapping}->{date_from_filename}
+            or (not defined $match->{mapping}->{date_from_filename}
                 and $profile->{date_from_filename})) {
         $yymmdd = KD::Aux::get_date_from_filename(
-            $file, $match->{date_regex});
+            $file, $match->{mapping}->{date_regex});
     }
     else {
         $yymmdd = KD::Aux::get_date_from_mtime($file);
     }
+
+    # maybe invert date
+    if ($match->{mapping}->{reverse_date}) {
+        my ($yy, $mm, $dd) = $yymmdd =~ /(..)/g;
+        if (defined $yy and defined $mm and defined $dd) {
+            $yymmdd = join '', $dd, $mm, $yy;
+        }
+        else {
+            print STDERR "WARNING: Konnte Datum nicht umdrehen, da es nicht "
+                ."geparst werden konnte.\n";
+        }
+    }
+
     my $yymm = KD::Aux::yymm_date($yymmdd);
     my $newname = KD::Aux::new_filename($match, $yymmdd);
 
@@ -91,7 +105,7 @@ sub process_file {
     print "Verarbeite \"".basename($file)."\" von $profile->{name}... ";
 
     # create necessary directories
-    my $dir = "$profile->{destination}/$match->{dir}/$yymm";
+    my $dir = "$profile->{destination}/$match->{mapping}->{dir}/$yymm";
     if (not -d $dir and not $simulate) {
         die "Konnte Verzeichnis \"$dir\" nicht anlegen!" if not mkpath($dir);
     }
@@ -127,10 +141,10 @@ sub input_data {
     my $timestamp = shift;
     my $match = shift;
 
-    return 0 if not $match->{dbinput};
+    return 0 if not $match->{mapping}->{dbinput};
 
-    my $app = "$profile->{db_app_path}/$match->{dbinput}";
-    my $logdir = "$profile->{db_log_path}/$match->{dir}/$timestamp/";
+    my $app = "$profile->{db_app_path}/$match->{mapping}->{dbinput}";
+    my $logdir = "$profile->{db_log_path}/$match->{mapping}->{dir}/$timestamp/";
 
     # since the error handling of make_path sucks we just hope for the
     # best here

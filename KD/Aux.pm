@@ -31,13 +31,23 @@ sub now_timestamp {
 
 # match($profile, $file)
 #
-# returns the correct mapping if $file could be matched.
+# returns the correct mapping and matched string if $file could be matched.
 sub match {
     my $profile = shift;
     my $file = shift;
 
     foreach my $regexp (keys %{$profile->{mapping}}) {
-        return $profile->{mapping}->{$regexp} if $file =~ /$regexp/;
+        if ($file =~ /$regexp/) {
+            my $mapping = $profile->{mapping}->{$regexp};
+            if ($mapping->{keep_original_filename}) {
+                die "'$regexp' passte und lieferte keinen String zurück, aber keep_original_filename ist gesetzt.\n"
+                    if not $1;
+            }
+            return {
+                mapping => $mapping,
+                match   => $1,
+            };
+        }
     }
 
     return undef;
@@ -50,7 +60,12 @@ sub new_filename {
     my $match  = shift;
     my $yymmdd = shift;
 
-    return "$match->{prefix}${yymmdd}$match->{ext}";
+    if ($match->{mapping}->{keep_original_filename}) {
+        return $match->{match};
+    }
+    else {
+        return "$match->{mapping}->{prefix}${yymmdd}$match->{mapping}->{ext}";
+    }
 }
 
 # get_date_from_mtime($file, $sub)
@@ -80,7 +95,11 @@ sub get_date_from_filename {
 
     if ($regex) {
         my (@match) = $filename =~ /$regex/;
-        return $match[0] if scalar @match > 0;
+        if (scalar @match > 0) {
+            my $date = $match[0];
+            $date =~ tr/-//d;
+            return $date;
+        }
     }
     else {
         # try to match 8 digits first, then 6

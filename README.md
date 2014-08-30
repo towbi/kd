@@ -143,7 +143,7 @@ _XYZ_ nun eingelesen. Man kann mehrere Dateien auf einmal übergeben.
 
 ## Lizenz
 
-kd, Copyright (C) 2009-2012  Tobias M.-Nissen <<tn@movb.de>>
+kd, Copyright (C) 2009-2014  Tobias M.-Nissen <<tn@movb.de>>
 
 Dieses Programm ist freie Software. Sie können es unter den Bedingungen
 der GNU General Public License, wie von der Free Software Foundation
