@@ -15,7 +15,7 @@ use KD::StateDB;
 
 # globals
 my $name = 'kd-process-file';
-my $version = '0.7.2';
+my $version = '0.7.3';
 
 # process command line parameters
 my $help;
