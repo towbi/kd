@@ -94,7 +94,7 @@ sub get_date_from_filename {
     my $regex         = shift; # optional
     my $date_reversed = shift; # optional
 
-    $reverse_date = 0 unless $reverse_date;
+    $date_reversed = 0 unless $date_reversed;
 
     if ($regex) {
         my (@match) = $filename =~ /$regex/;
