@@ -90,15 +90,30 @@ sub get_date_from_mtime {
 #
 # returns date in YYMMDD format if it can find one in $filename.
 sub get_date_from_filename {
-    my $filename = shift; # mandatory
-    my $regex    = shift; # optional
+    my $filename      = shift; # mandatory
+    my $regex         = shift; # optional
+    my $date_reversed = shift; # optional
+
+    $reverse_date = 0 unless $reverse_date;
 
     if ($regex) {
         my (@match) = $filename =~ /$regex/;
         if (scalar @match > 0) {
             my $date = $match[0];
             $date =~ tr/-_//d;
-            return $date if length $date == 6;
+            if (length $date == 8) { # if the year has 4 digits
+                if ($date_reversed) { # if the date is reversed (i.e. starts with day, ends with year)
+                    # DDMMyyYY ~> DDMMYY
+                    return substr($date, 0, 4) . substr($date, 6, 2);
+                }
+                else {
+                    # yyYYMMDD ~> YYMMDD
+                    return substr($date, 2, 6);
+                }
+            }
+            elsif (length $date == 6) {
+                return $date;
+            }
         }
     }
     else {

@@ -78,7 +78,10 @@ sub process_file {
             or (not defined $match->{mapping}->{date_from_filename}
                 and $profile->{date_from_filename})) {
         $yymmdd = KD::Aux::get_date_from_filename(
-            $file, $match->{mapping}->{date_regex});
+            $file,
+            $match->{mapping}->{date_regex},
+            $match->{mapping}->{reverse_date}
+        );
     }
     else {
         $yymmdd = KD::Aux::get_date_from_mtime($file);
